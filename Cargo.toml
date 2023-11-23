@@ -13,6 +13,9 @@ js-sys = "0.3"
 log = "0.4"
 fern = "0.6"
 
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
 # screeps-game-api = "0.16"
 # If you'd like to use a locally-cloned out version of the game API crate
 # (for testing PRs, etc), you can use a local path (replacing the above line):
