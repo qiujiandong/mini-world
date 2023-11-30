@@ -2,7 +2,38 @@ use crate::creep_target::*;
 use log::*;
 use screeps::*;
 
-const BUILDER_PART: [Part; 4] = [Part::Work, Part::Carry, Part::Move, Part::Move];
+const BUILDER_PART: [Part; 8] = [
+    Part::Work,
+    Part::Work,
+    Part::Carry,
+    Part::Carry,
+    Part::Move,
+    Part::Move,
+    Part::Move,
+    Part::Move,
+];
+const MINER_PART: [Part; 8] = [
+    Part::Work,
+    Part::Work,
+    Part::Work,
+    Part::Work,
+    Part::Move,
+    Part::Move,
+    Part::Move,
+    Part::Move,
+];
+const CARRIER_PART: [Part; 10] = [
+    Part::Carry,
+    Part::Carry,
+    Part::Carry,
+    Part::Carry,
+    Part::Carry,
+    Part::Move,
+    Part::Move,
+    Part::Move,
+    Part::Move,
+    Part::Move,
+];
 const NORMAL_PART: [Part; 4] = [Part::Work, Part::Carry, Part::Move, Part::Move];
 
 #[derive(Debug)]
@@ -43,7 +74,6 @@ pub struct CreepMgr {
     id: Option<ObjectId<Creep>>,
     state: CreepState,
     target: Option<CreepTarget>,
-    path: Option<String>,
     career: CreepType,
 }
 
@@ -57,7 +87,6 @@ impl CreepMgr {
                     id: Some(id),
                     state: CreepState::Idle,
                     target: None,
-                    path: None,
                     career: CreepType::from(String::from(name)),
                 }
             }
@@ -66,7 +95,6 @@ impl CreepMgr {
                 id: None,
                 state: CreepState::NotExist,
                 target: None,
-                path: None,
                 career: CreepType::from(String::from(name)),
             },
         }
@@ -227,16 +255,24 @@ impl CreepMgr {
                     let part_array: &[Part];
                     match self.career {
                         CreepType::Builder => part_array = &BUILDER_PART,
+                        CreepType::Miner => part_array = &MINER_PART,
+                        CreepType::Carrier => part_array = &CARRIER_PART,
+                        CreepType::Upgrader => part_array = &NORMAL_PART,
                         _ => part_array = &NORMAL_PART,
                     }
 
                     let cost: u32 = part_array.iter().map(|p| p.cost()).sum();
                     let energy_amount = spawn.room().unwrap().energy_available();
 
-                    if energy_amount < cost {
-                        Err(ErrorCode::NotEnough)
+                    // NOTE(qiujiandong): stop spawn miner
+                    if let CreepType::Miner = self.career {
+                        Err(ErrorCode::InvalidArgs)
                     } else {
-                        spawn.spawn_creep(part_array, self.name.as_str())
+                        if energy_amount < cost {
+                            Err(ErrorCode::NotEnough)
+                        } else {
+                            spawn.spawn_creep(part_array, self.name.as_str())
+                        }
                     }
                 }
             },
@@ -296,6 +332,7 @@ impl CreepMgr {
 
         match self.career {
             CreepType::Builder => {
+                let no: i32 = self.name.strip_prefix("builder-").unwrap().parse().unwrap();
                 // if energy full
                 // 1. find construction site and build
                 // 2. find spawn, energy in which is not full
@@ -303,73 +340,96 @@ impl CreepMgr {
                 // else
                 // 1. fetch energy
                 if creep.store().get_free_capacity(Some(ResourceType::Energy)) == 0 {
-                    match find_notfull_spawn(creep.room().as_ref().unwrap()) {
+                    match find_notfull_spawn_or_extension(creep.room().as_ref().unwrap()) {
                         Some(spawn) => {
                             self.target = Some(spawn);
                         }
                         None => {
-                            let no: i32 =
-                                self.name.strip_prefix("builder-").unwrap().parse().unwrap();
                             let cs = creep
                                 .room()
                                 .as_ref()
                                 .unwrap()
                                 .find(find::CONSTRUCTION_SITES, None);
 
-                            if no < 3 {
-                                if let Some(cs_) = cs.iter().find(|cs| {
-                                    cs.structure_type() == StructureType::Container
-                                        && cs.js_pos().is_equal_to_xy(41, 5)
-                                }) {
-                                    self.target = Some(CreepTarget::new(
-                                        &ObjectWithPosition::from(cs_.clone()),
-                                    ));
-                                } else {
-                                    self.target = Some(CreepTarget::new(
-                                        &ObjectWithPosition::from(cs[0].clone()),
-                                    ));
-                                }
+                            if let Some(cs_) = cs
+                                .iter()
+                                .find(|cs| cs.structure_type() == StructureType::Storage)
+                            {
+                                self.target =
+                                    Some(CreepTarget::new(&ObjectWithPosition::from(cs_.clone())));
                             } else {
-                                if let Some(cs_) = cs.iter().find(|cs| {
-                                    cs.structure_type() == StructureType::Container
-                                        && cs.js_pos().is_equal_to_xy(4, 45)
-                                }) {
-                                    self.target = Some(CreepTarget::new(
-                                        &ObjectWithPosition::from(cs_.clone()),
-                                    ));
-                                } else {
-                                    self.target = Some(CreepTarget::new(
-                                        &ObjectWithPosition::from(cs[0].clone()),
-                                    ));
-                                }
+                                self.target = Some(CreepTarget::new(&ObjectWithPosition::from(
+                                    cs[0].clone(),
+                                )));
                             }
                         }
                     }
                 } else {
-                    let no: i32 = self.name.strip_prefix("builder-").unwrap().parse().unwrap();
-                    let sources = creep
-                        .room()
-                        .as_ref()
-                        .unwrap()
-                        .find(find::SOURCES_ACTIVE, None);
-
-                    if no < 3 {
-                        if let Some(source_) =
-                            sources.iter().find(|s| s.js_pos().is_equal_to_xy(42, 5))
-                        {
-                            self.target =
-                                Some(CreepTarget::new(&ObjectWithPosition::from(source_.clone())));
+                    let structures = creep.room().as_ref().unwrap().find(find::STRUCTURES, None);
+                    if let Some(structure) = structures.iter().find(|s| {
+                        if let StructureObject::StructureContainer(container) = s {
+                            container
+                                .store()
+                                .get_used_capacity(Some(ResourceType::Energy))
+                                > 50
+                        } else {
+                            false
+                        }
+                    }) {
+                        if let StructureObject::StructureContainer(container) = structure {
+                            self.target = Some(CreepTarget::new(&ObjectWithPosition::from(
+                                container.clone(),
+                            )));
                         }
                     } else {
-                        if let Some(source_) =
-                            sources.iter().find(|s| s.js_pos().is_equal_to_xy(4, 46))
-                        {
-                            self.target =
-                                Some(CreepTarget::new(&ObjectWithPosition::from(source_.clone())));
+                        let sources = creep
+                            .room()
+                            .as_ref()
+                            .unwrap()
+                            .find(find::SOURCES_ACTIVE, None);
+
+                        if no < 3 {
+                            if let Some(source_) =
+                                sources.iter().find(|s| s.js_pos().is_equal_to_xy(42, 5))
+                            {
+                                self.target = Some(CreepTarget::new(&ObjectWithPosition::from(
+                                    source_.clone(),
+                                )));
+                            }
+                        } else {
+                            if let Some(source_) =
+                                sources.iter().find(|s| s.js_pos().is_equal_to_xy(4, 46))
+                            {
+                                self.target = Some(CreepTarget::new(&ObjectWithPosition::from(
+                                    source_.clone(),
+                                )));
+                            }
                         }
                     }
                 }
             }
+            CreepType::Miner => {
+                let no: i32 = self.name.strip_prefix("miner-").unwrap().parse().unwrap();
+                let sources = creep
+                    .room()
+                    .as_ref()
+                    .unwrap()
+                    .find(find::SOURCES_ACTIVE, None);
+                if no == 0 {
+                    if let Some(source_) = sources.iter().find(|s| s.js_pos().is_equal_to_xy(42, 5))
+                    {
+                        self.target =
+                            Some(CreepTarget::new(&ObjectWithPosition::from(source_.clone())));
+                    }
+                } else if no == 1 {
+                    if let Some(source_) = sources.iter().find(|s| s.js_pos().is_equal_to_xy(4, 46))
+                    {
+                        self.target =
+                            Some(CreepTarget::new(&ObjectWithPosition::from(source_.clone())));
+                    }
+                }
+            }
+            CreepType::Carrier => {}
             CreepType::Upgrader => {
                 // if energy full
                 // 1. find controller to upgrade
@@ -396,8 +456,24 @@ impl CreepMgr {
 
     fn go_ahead(&mut self) -> Result<(), ErrorCode> {
         // TODO(qiujiandong): memory path
-        let creep = self.get_creep().unwrap();
-        creep.move_to(self.target.as_ref().unwrap().get_pos())
+        if let CreepType::Miner = self.career {
+            let no: i32 = self.name.strip_prefix("miner-").unwrap().parse().unwrap();
+            let creep = self.get_creep().unwrap();
+            if no == 0 {
+                let mut pos = self.target.as_ref().unwrap().get_pos();
+                pos.offset(-1, 0);
+                creep.move_to(pos)
+            } else if no == 1 {
+                let mut pos = self.target.as_ref().unwrap().get_pos();
+                pos.offset(0, -1);
+                creep.move_to(pos)
+            } else {
+                Err(ErrorCode::InvalidTarget)
+            }
+        } else {
+            let creep = self.get_creep().unwrap();
+            creep.move_to(self.target.as_ref().unwrap().get_pos())
+        }
     }
 
     fn do_work(&mut self) -> Result<(), ErrorCode> {
@@ -409,11 +485,34 @@ impl CreepMgr {
                 }
                 CreepAction::FetchFromSource(id) => {
                     let source = game::get_object_by_id_typed(&id).unwrap();
-                    creep.harvest(&source)
+                    if let CreepType::Miner = self.career {
+                        let mut target_pos = self.target.as_ref().unwrap().get_pos();
+                        let no: i32 = self.name.strip_prefix("miner-").unwrap().parse().unwrap();
+                        if no == 0 {
+                            target_pos.offset(-1, 0);
+                        } else if no == 1 {
+                            target_pos.offset(0, -1);
+                        }
+                        if creep.pos().is_equal_to(target_pos) {
+                            creep.harvest(&source)
+                        } else {
+                            Err(ErrorCode::NoPath)
+                        }
+                    } else {
+                        creep.harvest(&source)
+                    }
+                }
+                CreepAction::FetchFromContainer(id) => {
+                    let container = game::get_object_by_id_typed(&id).unwrap();
+                    creep.withdraw(&container, ResourceType::Energy, None)
                 }
                 CreepAction::TransferToSpawn(id) => {
                     let spawn = game::get_object_by_id_typed(&id).unwrap();
                     creep.transfer(&spawn, ResourceType::Energy, None)
+                }
+                CreepAction::TransferToExtension(id) => {
+                    let extension = game::get_object_by_id_typed(&id).unwrap();
+                    creep.transfer(&extension, ResourceType::Energy, None)
                 }
                 CreepAction::Upgrade(id) => {
                     let controller = game::get_object_by_id_typed(&id).unwrap();
