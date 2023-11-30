@@ -1,40 +1,43 @@
-use js_sys::JsString;
-use log::*;
-use screeps::raw_memory;
-use screeps::*;
-use serde::{Deserialize, Serialize};
-use serde_json;
+use creep_manager::CreepMgr;
+use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 
+mod creep_manager;
+mod creep_target;
 mod logging;
 
-#[derive(Serialize, Deserialize, Debug, Default)]
-struct Info {
-  name: String,
-  age: u32,
+thread_local! {
+  static CREEP_ARRAY: RefCell<Vec<CreepMgr>> = RefCell::new(Vec::new());
 }
 
 // add wasm_bindgen to any function you would like to expose for call from js
 #[wasm_bindgen]
 pub fn setup() {
-  logging::setup_logging(logging::Debug);
+    logging::setup_logging(logging::Debug);
+
+    CREEP_ARRAY.with(|creep_array| {
+        let creep_mgrs = &mut creep_array.borrow_mut();
+
+        creep_mgrs.push(CreepMgr::new("upgrader-0")); // work + carry + move
+        creep_mgrs.push(CreepMgr::new("builder-5")); // work + carry + move
+        creep_mgrs.push(CreepMgr::new("builder-4")); // work + carry + move
+        creep_mgrs.push(CreepMgr::new("builder-3")); // work + carry + move
+        creep_mgrs.push(CreepMgr::new("builder-2")); // work + carry + move
+        creep_mgrs.push(CreepMgr::new("builder-1")); // work + carry + move
+        creep_mgrs.push(CreepMgr::new("builder-0")); // work + carry + move
+
+        // creep_mgrs.push(CreepMgr::new("carrier-0")); // carry + move
+        // creep_mgrs.push(CreepMgr::new("miner-0")); // work + move
+    })
 }
 
 // to use a reserved name as a function name, use `js_name`:
 #[wasm_bindgen(js_name = loop)]
 pub fn game_loop() {
-  let active_segs: [u8; 4] = [0, 1, 2, 3];
-  raw_memory::set_active_segments(&active_segs);
-
-  let last_info = raw_memory::get().as_string().unwrap();
-  let info_old: Info = serde_json::from_str(&last_info).unwrap_or_default();
-  debug!("last info: {:?}", info_old);
-
-  let info = Info {
-    name: String::from("hello"),
-    age: game::time(),
-  };
-
-  let serialized = JsString::from(serde_json::to_string(&info).unwrap());
-  raw_memory::set(&serialized);
+    CREEP_ARRAY.with(|creep_array| {
+        let creep_mgrs = &mut creep_array.borrow_mut();
+        for creep_mgr in creep_mgrs.iter_mut() {
+            creep_mgr.run();
+        }
+    });
 }
