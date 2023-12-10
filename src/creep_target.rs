@@ -86,6 +86,7 @@ pub fn find_container(
     creep: &Creep,
     pos: Option<Position>,
     act: ActionCommand,
+    amount: Option<u32>,
 ) -> Option<CreepTarget> {
     let container;
     let room = creep.clone().room().unwrap();
@@ -97,7 +98,7 @@ pub fn find_container(
         .filter(|s| {
             if s.structure_type() == StructureType::Container {
                 let c: StructureContainer = (*s).clone().try_into().unwrap();
-                c.store().get_used_capacity(Some(ResourceType::Energy)) > 0
+                c.store().get_used_capacity(Some(ResourceType::Energy)) > amount.unwrap_or(0)
             } else {
                 false
             }

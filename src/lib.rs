@@ -2,6 +2,7 @@ use creep_manager::CreepMgr;
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 
+mod creep_composition;
 mod creep_manager;
 mod creep_target;
 mod logging;
@@ -13,19 +14,19 @@ thread_local! {
 // add wasm_bindgen to any function you would like to expose for call from js
 #[wasm_bindgen]
 pub fn setup() {
-    logging::setup_logging(logging::Debug);
+    logging::setup_logging(logging::Info);
 
     CREEP_ARRAY.with(|creep_array| {
         let creep_mgrs = &mut creep_array.borrow_mut();
 
         creep_mgrs.push(CreepMgr::new("upgrader-0")); // work + carry + move
-        creep_mgrs.push(CreepMgr::new("builder-5")); // work + carry + move
-        creep_mgrs.push(CreepMgr::new("builder-4")); // work + carry + move
-        creep_mgrs.push(CreepMgr::new("builder-3")); // work + carry + move
+                                                      // creep_mgrs.push(CreepMgr::new("builder-5")); // work + carry + move
+                                                      // creep_mgrs.push(CreepMgr::new("builder-4")); // work + carry + move
+                                                      // creep_mgrs.push(CreepMgr::new("builder-3")); // work + carry + move
         creep_mgrs.push(CreepMgr::new("builder-2")); // work + carry + move
         creep_mgrs.push(CreepMgr::new("builder-1")); // work + carry + move
         creep_mgrs.push(CreepMgr::new("builder-0")); // work + carry + move
-        creep_mgrs.push(CreepMgr::new("miner-1")); // work + move
+                                                     // creep_mgrs.push(CreepMgr::new("miner-1")); // work + move
         creep_mgrs.push(CreepMgr::new("miner-0")); // work + move
 
         // creep_mgrs.push(CreepMgr::new("carrier-0")); // carry + move
