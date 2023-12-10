@@ -14,7 +14,7 @@ thread_local! {
 // add wasm_bindgen to any function you would like to expose for call from js
 #[wasm_bindgen]
 pub fn setup() {
-    logging::setup_logging(logging::Info);
+    logging::setup_logging(logging::Debug);
 
     CREEP_ARRAY.with(|creep_array| {
         let creep_mgrs = &mut creep_array.borrow_mut();
@@ -27,10 +27,10 @@ pub fn setup() {
         creep_mgrs.push(CreepMgr::new("builder-1")); // work + carry + move
         creep_mgrs.push(CreepMgr::new("builder-0")); // work + carry + move
                                                      // creep_mgrs.push(CreepMgr::new("miner-1")); // work + move
+        creep_mgrs.push(CreepMgr::new("carrier-0")); // carry + move
+        creep_mgrs.push(CreepMgr::new("carrier-1")); // carry + move
+        creep_mgrs.push(CreepMgr::new("miner-1")); // work + move
         creep_mgrs.push(CreepMgr::new("miner-0")); // work + move
-
-        // creep_mgrs.push(CreepMgr::new("carrier-0")); // carry + move
-        // creep_mgrs.push(CreepMgr::new("miner-0")); // work + move
     })
 }
 

@@ -98,7 +98,7 @@ pub fn find_container(
         .filter(|s| {
             if s.structure_type() == StructureType::Container {
                 let c: StructureContainer = (*s).clone().try_into().unwrap();
-                c.store().get_used_capacity(Some(ResourceType::Energy)) > amount.unwrap_or(0)
+                c.store().get_used_capacity(Some(ResourceType::Energy)) >= amount.unwrap_or(0)
             } else {
                 false
             }
@@ -127,6 +127,7 @@ pub fn find_storage(
     creep: &Creep,
     pos: Option<Position>,
     act: ActionCommand,
+    amount: Option<u32>,
 ) -> Option<CreepTarget> {
     let room = creep.clone().room().unwrap();
     let structures = room.find(find::STRUCTURES, None);
@@ -136,7 +137,9 @@ pub fn find_storage(
         if s.structure_type() == StructureType::Storage {
             let c: StructureStorage = (*s).clone().try_into().unwrap();
             match act {
-                ActionCommand::Fetch => c.store().get_used_capacity(Some(ResourceType::Energy)) > 0,
+                ActionCommand::Fetch => {
+                    c.store().get_used_capacity(Some(ResourceType::Energy)) >= amount.unwrap_or(0)
+                }
                 ActionCommand::Transfer => {
                     c.store().get_free_capacity(Some(ResourceType::Energy)) > 0
                 }
