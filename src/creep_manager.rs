@@ -10,6 +10,7 @@ enum CreepState {
     Idle,
     OnWay,
     Working,
+    WaitingForSafe,
 }
 
 pub struct CreepMgr {
@@ -53,7 +54,15 @@ impl CreepMgr {
     }
 
     pub fn run(&mut self) {
-        if let None = is_creep_exist(self.name.as_str()) {
+        if let Some(room) = game::rooms().get(RoomName::new("E36N7").unwrap()) {
+            let hostiles = room.find(find::HOSTILE_CREEPS, None);
+            if hostiles.len() > 0 {
+                self.state = CreepState::WaitingForSafe;
+                if let Some(creep) = self.get_creep() {
+                    creep.suicide().unwrap_or(());
+                }
+            }
+        } else if let None = self.get_creep() {
             self.state = CreepState::NotExist;
         }
         match self.state {
@@ -110,6 +119,7 @@ impl CreepMgr {
             }
             CreepState::OnWay => {
                 if let Ok(()) = self.is_work_done() {
+                    debug!("creep {:?} work is done, find another target", self.name);
                     if let Ok(()) = self.seek_target() {
                         if let Ok(()) = self.do_work() {
                             // try do work succeed
@@ -127,6 +137,7 @@ impl CreepMgr {
                         self.state = CreepState::Idle;
                     }
                 } else {
+                    debug!("creep {:?} work not done", self.name);
                     if let Ok(()) = self.do_work() {
                         // try do work succeed
                         debug!("creep {:?} is working", self.name);
@@ -163,6 +174,14 @@ impl CreepMgr {
                     debug!("creep {:?} is working", self.name);
                 }
             }
+            CreepState::WaitingForSafe => {
+                if let Some(room) = game::rooms().get(RoomName::new("E36N7").unwrap()) {
+                    let hostiles = room.find(find::HOSTILE_CREEPS, None);
+                    if hostiles.len() == 0 {
+                        self.state = CreepState::Idle;
+                    }
+                }
+            }
         }
     }
 
@@ -178,13 +197,10 @@ impl CreepMgr {
                     }
                 }
                 None => {
-                    let cost = self.career.cost();
-                    let energy_amount = spawn.room().unwrap().energy_available();
-
-                    if energy_amount < cost {
-                        Err(ErrorCode::NotEnough)
-                    } else {
+                    if spawn.room().unwrap().energy_available() >= self.career.cost() {
                         spawn.spawn_creep(self.career.part_vec(), self.name.as_str())
+                    } else {
+                        Err(ErrorCode::NotEnough)
                     }
                 }
             },
@@ -278,6 +294,31 @@ impl CreepMgr {
                     }
                 } else {
                     self.setup_working_status(false);
+                    // if let Some(source) = find_source(&creep, None) {
+                    //     self.target = Some(source);
+                    // } else {
+                    //     if let Some(container) = find_container(
+                    //         &creep,
+                    //         Some(Position::new(
+                    //             RoomCoordinate::new(4).unwrap(),
+                    //             RoomCoordinate::new(45).unwrap(),
+                    //             RoomName::new("E36N7").unwrap(),
+                    //         )),
+                    //         ActionCommand::Fetch,
+                    //         Some(self.career.carry_cnt() as u32 * 50),
+                    //     ) {
+                    //         self.target = Some(container);
+                    //     } else {
+                    //         if let Some(storage) = find_storage(
+                    //             &creep,
+                    //             None,
+                    //             Some(ActionCommand::Fetch),
+                    //             Some(self.career.carry_cnt() as u32 * 50),
+                    //         ) {
+                    //             self.target = Some(storage);
+                    //         }
+                    //     }
+                    // }
                     if let Some(container) = find_container(
                         &creep,
                         Some(Position::new(
@@ -293,7 +334,7 @@ impl CreepMgr {
                         if let Some(storage) = find_storage(
                             &creep,
                             None,
-                            ActionCommand::Fetch,
+                            Some(ActionCommand::Fetch),
                             Some(self.career.carry_cnt() as u32 * 50),
                         ) {
                             self.target = Some(storage);
@@ -354,12 +395,14 @@ impl CreepMgr {
                     //         }
                     //     }
                     // }
-                    // 2. find storage to store
-                    if let Some(storage) = find_storage(&creep, None, ActionCommand::Transfer, None)
+
+                    // 1. find storage to store
+                    if let Some(storage) =
+                        find_storage(&creep, None, Some(ActionCommand::Transfer), None)
                     {
                         self.target = Some(storage);
                     } else {
-                        // 3. find controller to upgrade
+                        // 2. find controller to upgrade
                         if let Some(controller) = find_controller(&creep) {
                             self.target = Some(controller);
                         }
@@ -423,13 +466,22 @@ impl CreepMgr {
                     if let Some(storage) = find_storage(
                         &creep,
                         None,
-                        ActionCommand::Fetch,
+                        Some(ActionCommand::Fetch),
                         Some(self.career.carry_cnt() as u32 * 50),
                     ) {
                         self.target = Some(storage);
                     } else {
-                        if let Some(source) = find_source(&creep, None) {
-                            self.target = Some(source);
+                        if let Some(container) = find_container(
+                            &creep,
+                            None,
+                            ActionCommand::Fetch,
+                            Some(self.career.carry_cnt() as u32 * 50),
+                        ) {
+                            self.target = Some(container);
+                        } else {
+                            if let Some(source) = find_source(&creep, None) {
+                                self.target = Some(source);
+                            }
                         }
                     }
                 }
@@ -439,7 +491,16 @@ impl CreepMgr {
         if let Some(_) = self.target {
             Ok(())
         } else {
-            Err(ErrorCode::NotFound)
+            if let Some(storage) = find_storage(&creep, None, None, None) {
+                if creep.pos().is_near_to(storage.pos().unwrap()) {
+                    Err(ErrorCode::NotFound)
+                } else {
+                    self.target = Some(storage);
+                    Ok(())
+                }
+            } else {
+                Err(ErrorCode::NotFound)
+            }
         }
     }
 
@@ -478,7 +539,7 @@ impl CreepMgr {
             }
         } else {
             // creep.move_to(self.target.as_ref().unwrap().pos().unwrap())
-            self.repair_road();
+            self.repair_road()?;
             let options = MoveToOptions::new().reuse_path(0);
             creep.move_to_with_options(self.target.as_ref().unwrap().pos().unwrap(), Some(options))
         }
@@ -505,21 +566,19 @@ impl CreepMgr {
                             _ => {}
                         }
                         if creep.pos().is_equal_to(target_pos) {
-                            self.repair_container();
-                            let structures = creep.pos().look_for(look::STRUCTURES).unwrap();
-
-                            let container = structures
-                                .iter()
-                                .find(|s| s.structure_type() == StructureType::Container)
-                                .unwrap();
-
-                            let c: StructureContainer = container.clone().try_into().unwrap();
-                            if c.store().get_free_capacity(Some(ResourceType::Energy)) > 0
-                                || creep.store().get_free_capacity(Some(ResourceType::Energy)) > 0
-                            {
-                                creep.harvest(&source)
-                            } else {
-                                Err(ErrorCode::Full)
+                            match self.repair_container() {
+                                Ok(_) => creep.harvest(&source),
+                                Err(ErrorCode::Full) => {
+                                    if creep.store().get_free_capacity(Some(ResourceType::Energy))
+                                        > 0
+                                    {
+                                        creep.harvest(&source)
+                                    } else {
+                                        Err(ErrorCode::Full)
+                                    }
+                                }
+                                Err(ErrorCode::Busy) => Err(ErrorCode::Busy),
+                                Err(_) => Err(ErrorCode::Busy),
                             }
                         } else {
                             Err(ErrorCode::NoPath)
@@ -676,7 +735,11 @@ impl CreepMgr {
     }
 
     fn get_creep(&self) -> Option<Creep> {
-        game::get_object_by_id_typed(self.id.as_ref().unwrap())
+        if let Some(id) = self.id {
+            game::get_object_by_id_typed(&id)
+        } else {
+            None
+        }
     }
 
     fn setup_working_status(&self, is_working: bool) {
@@ -692,7 +755,8 @@ impl CreepMgr {
         }
     }
 
-    fn repair_road(&self) {
+    fn repair_road(&self) -> Result<(), ErrorCode> {
+        let mut ret: Result<(), ErrorCode> = Ok(());
         let creep = self.get_creep().unwrap();
         let structures = creep.pos().look_for(look::STRUCTURES);
         if let Ok(structures_) = structures {
@@ -701,14 +765,20 @@ impl CreepMgr {
                 .find(|s| s.structure_type() == StructureType::Road);
             if let Some(road_) = road {
                 let r: StructureRoad = road_.clone().try_into().unwrap();
-                if r.hits_max() - r.hits() >= self.career.work_cnt() as u32 * 100 {
+                if r.hits_max() - r.hits() >= self.career.work_cnt() as u32 * 100
+                    && creep.store().get_used_capacity(Some(ResourceType::Energy))
+                        > self.career.work_cnt() as u32
+                {
                     creep.repair(&r).unwrap_or(());
+                    ret = Err(ErrorCode::Busy);
                 }
             }
         }
+        ret
     }
 
-    fn repair_container(&self) {
+    fn repair_container(&self) -> Result<(), ErrorCode> {
+        let mut ret: Result<(), ErrorCode> = Ok(());
         let creep = self.get_creep().unwrap();
         let structures = creep.pos().look_for(look::STRUCTURES);
         if let Ok(structures_) = structures {
@@ -717,11 +787,19 @@ impl CreepMgr {
                 .find(|s| s.structure_type() == StructureType::Container);
             if let Some(container_) = container {
                 let c: StructureContainer = container_.clone().try_into().unwrap();
-                if c.hits_max() - c.hits() >= self.career.work_cnt() as u32 * 100 {
+                if c.hits_max() - c.hits() >= self.career.work_cnt() as u32 * 100
+                    && creep.store().get_used_capacity(Some(ResourceType::Energy))
+                        > self.career.work_cnt() as u32
+                {
                     creep.repair(&c).unwrap_or(());
+                    ret = Err(ErrorCode::Busy);
+                }
+                if c.store().get_free_capacity(Some(ResourceType::Energy)) == 0 {
+                    ret = Err(ErrorCode::Full);
                 }
             }
         }
+        ret
     }
 }
 

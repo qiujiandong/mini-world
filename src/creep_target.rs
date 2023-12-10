@@ -7,12 +7,14 @@ pub enum CreepTarget {
     TransferToExtension(ObjectId<StructureExtension>), // transfer
     TransferToStorage(ObjectId<StructureStorage>),     // transfer
     TransferToContainer(ObjectId<StructureContainer>), // transfer
-    FetchFromStorage(ObjectId<StructureStorage>),      // withdraw
-    FetchFromContainer(ObjectId<StructureContainer>),  // withdraw
-    FetchFromSource(ObjectId<Source>),                 // harvest
+    MoveToStorage(ObjectId<StructureStorage>),
+    FetchFromStorage(ObjectId<StructureStorage>), // withdraw
+    FetchFromContainer(ObjectId<StructureContainer>), // withdraw
+    FetchFromSource(ObjectId<Source>),            // harvest
     Default,
 }
 
+#[derive(Clone)]
 pub enum ActionCommand {
     Fetch,
     Transfer,
@@ -31,7 +33,7 @@ impl CreepTarget {
             ObjectWithPosition::StructureStorage(storage) => match act {
                 Some(ActionCommand::Fetch) => Self::FetchFromStorage(storage.id()),
                 Some(ActionCommand::Transfer) => Self::TransferToStorage(storage.id()),
-                None => Self::Default,
+                None => Self::MoveToStorage(storage.id()),
             },
             ObjectWithPosition::StructureContainer(container) => match act {
                 Some(ActionCommand::Fetch) => Self::FetchFromContainer(container.id()),
@@ -53,6 +55,7 @@ impl CreepTarget {
             Self::FetchFromStorage(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
             Self::FetchFromContainer(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
             Self::FetchFromSource(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
+            Self::MoveToStorage(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
             _ => None,
         }
     }
@@ -126,7 +129,7 @@ pub fn find_container(
 pub fn find_storage(
     creep: &Creep,
     pos: Option<Position>,
-    act: ActionCommand,
+    act: Option<ActionCommand>,
     amount: Option<u32>,
 ) -> Option<CreepTarget> {
     let room = creep.clone().room().unwrap();
@@ -136,13 +139,19 @@ pub fn find_storage(
     let storage = structures.iter().find(|s| {
         if s.structure_type() == StructureType::Storage {
             let c: StructureStorage = (*s).clone().try_into().unwrap();
-            match act {
-                ActionCommand::Fetch => {
-                    c.store().get_used_capacity(Some(ResourceType::Energy)) >= amount.unwrap_or(0)
+            let act_clone = act.clone();
+            if let Some(act_) = act_clone {
+                match act_ {
+                    ActionCommand::Fetch => {
+                        c.store().get_used_capacity(Some(ResourceType::Energy))
+                            >= amount.unwrap_or(0)
+                    }
+                    ActionCommand::Transfer => {
+                        c.store().get_free_capacity(Some(ResourceType::Energy)) > 0
+                    }
                 }
-                ActionCommand::Transfer => {
-                    c.store().get_free_capacity(Some(ResourceType::Energy)) > 0
-                }
+            } else {
+                true
             }
         } else {
             false
@@ -157,7 +166,7 @@ pub fn find_storage(
         } else {
         }
         let s: StructureStorage = storage_.clone().try_into().unwrap();
-        Some(CreepTarget::new(ObjectWithPosition::from(s), Some(act)))
+        Some(CreepTarget::new(ObjectWithPosition::from(s), act))
     } else {
         None
     }
