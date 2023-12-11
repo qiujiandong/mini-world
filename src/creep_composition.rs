@@ -54,23 +54,23 @@ impl CreepType {
             }
             "builder" => {
                 let mut compose: Vec<(Part, u8)> = Vec::new();
-                compose.push((Part::Work, 3));
-                compose.push((Part::Carry, 3));
-                compose.push((Part::Move, 6));
+                compose.push((Part::Work, 7));
+                compose.push((Part::Carry, 7));
+                compose.push((Part::Move, 14));
                 CreepType::Builder(CreepComposition::new(&compose))
             }
             "carrier" => {
                 let mut compose: Vec<(Part, u8)> = Vec::new();
                 compose.push((Part::Work, 1));
-                compose.push((Part::Carry, 9));
-                compose.push((Part::Move, 10));
+                compose.push((Part::Carry, 16));
+                compose.push((Part::Move, 17));
                 CreepType::Carrier(CreepComposition::new(&compose))
             }
             "miner" => {
                 let mut compose: Vec<(Part, u8)> = Vec::new();
-                compose.push((Part::Work, 5));
+                compose.push((Part::Work, 6));
                 compose.push((Part::Carry, 1));
-                compose.push((Part::Move, 5));
+                compose.push((Part::Move, 6));
                 CreepType::Miner(CreepComposition::new(&compose))
             }
             _ => {

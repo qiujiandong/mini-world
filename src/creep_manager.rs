@@ -263,20 +263,6 @@ impl CreepMgr {
                 if creep.store().get_used_capacity(Some(ResourceType::Energy)) > 0
                     && self.is_creep_working().unwrap_or(true)
                 {
-                    // // 1. find construction site and build
-                    // if let Some(construction_site) = find_construction_site(&creep, None, None) {
-                    //     self.target = Some(construction_site);
-                    // } else {
-                    //     // 2. find spawn, energy in which is not full
-                    //     if let Some(spawn) = find_notfull_spawn_or_extension(&creep) {
-                    //         self.target = Some(spawn);
-                    //     } else {
-                    //         // 3. find controller to upgrade
-                    //         if let Some(controller) = find_controller(&creep) {
-                    //             self.target = Some(controller);
-                    //         }
-                    //     }
-                    // }
                     // 1. find spawn, energy in which is not full
                     if let Some(spawn) = find_notfull_spawn_or_extension(&creep) {
                         self.target = Some(spawn);
@@ -294,51 +280,14 @@ impl CreepMgr {
                     }
                 } else {
                     self.setup_working_status(false);
-                    // if let Some(source) = find_source(&creep, None) {
-                    //     self.target = Some(source);
-                    // } else {
-                    //     if let Some(container) = find_container(
-                    //         &creep,
-                    //         Some(Position::new(
-                    //             RoomCoordinate::new(4).unwrap(),
-                    //             RoomCoordinate::new(45).unwrap(),
-                    //             RoomName::new("E36N7").unwrap(),
-                    //         )),
-                    //         ActionCommand::Fetch,
-                    //         Some(self.career.carry_cnt() as u32 * 50),
-                    //     ) {
-                    //         self.target = Some(container);
-                    //     } else {
-                    //         if let Some(storage) = find_storage(
-                    //             &creep,
-                    //             None,
-                    //             Some(ActionCommand::Fetch),
-                    //             Some(self.career.carry_cnt() as u32 * 50),
-                    //         ) {
-                    //             self.target = Some(storage);
-                    //         }
-                    //     }
-                    // }
-                    if let Some(container) = find_container(
+
+                    if let Some(storage) = find_storage(
                         &creep,
-                        Some(Position::new(
-                            RoomCoordinate::new(4).unwrap(),
-                            RoomCoordinate::new(45).unwrap(),
-                            RoomName::new("E36N7").unwrap(),
-                        )),
-                        ActionCommand::Fetch,
-                        Some(self.career.carry_cnt() as u32 * 50),
+                        None,
+                        Some(ActionCommand::Fetch),
+                        Some(self.career.carry_cnt() as u16 * 50),
                     ) {
-                        self.target = Some(container);
-                    } else {
-                        if let Some(storage) = find_storage(
-                            &creep,
-                            None,
-                            Some(ActionCommand::Fetch),
-                            Some(self.career.carry_cnt() as u32 * 50),
-                        ) {
-                            self.target = Some(storage);
-                        }
+                        self.target = Some(storage);
                     }
                 }
             }
@@ -370,76 +319,57 @@ impl CreepMgr {
                 _ => {}
             },
             CreepType::Carrier(_) => {
-                // if has energy
-                // 1. find spawn or extension, energy in which is not full
-                // 2. find storage to store
-                // 3. find controller to upgrade
-                // else
-                // 1. fetch energy from container, source
                 if creep.store().get_used_capacity(Some(ResourceType::Energy)) > 0
                     && self.is_creep_working().unwrap_or(true)
                 {
-                    // // 1. find spawn, energy in which is not full
-                    // if let Some(spawn) = find_notfull_spawn_or_extension(&creep) {
-                    //     self.target = Some(spawn);
-                    // } else {
-                    //     // 2. find storage to store
-                    //     if let Some(storage) =
-                    //         find_storage(&creep, None, ActionCommand::Transfer, None)
-                    //     {
-                    //         self.target = Some(storage);
-                    //     } else {
-                    //         // 3. find controller to upgrade
-                    //         if let Some(controller) = find_controller(&creep) {
-                    //             self.target = Some(controller);
-                    //         }
-                    //     }
-                    // }
-
-                    // 1. find storage to store
-                    if let Some(storage) =
-                        find_storage(&creep, None, Some(ActionCommand::Transfer), None)
-                    {
-                        self.target = Some(storage);
+                    // 1. find spawn, energy in which is not full
+                    if let Some(spawn) = find_notfull_spawn_or_extension(&creep) {
+                        self.target = Some(spawn);
                     } else {
-                        // 2. find controller to upgrade
-                        if let Some(controller) = find_controller(&creep) {
-                            self.target = Some(controller);
+                        // 2. find tower
+                        if let Some(tower) = find_tower(
+                            &creep,
+                            None,
+                            Some(ActionCommand::Transfer),
+                            Some(self.career.carry_cnt() as u16 * 50),
+                        ) {
+                            self.target = Some(tower);
+                        } else {
+                            // 3. find storage to store
+                            if let Some(storage) = find_storage(
+                                &creep,
+                                None,
+                                Some(ActionCommand::Transfer),
+                                Some(self.career.carry_cnt() as u16 * 50),
+                            ) {
+                                self.target = Some(storage);
+                            } else {
+                                // 4. find controller to upgrade
+                                if let Some(controller) = find_controller(&creep) {
+                                    self.target = Some(controller);
+                                }
+                            }
                         }
                     }
                 } else {
                     self.setup_working_status(false);
 
-                    match self.no {
-                        0 => {
-                            if let Some(container) = find_container(
-                                &creep,
-                                Some(Position::new(
-                                    RoomCoordinate::new(41).unwrap(),
-                                    RoomCoordinate::new(5).unwrap(),
-                                    RoomName::new("E36N7").unwrap(),
-                                )),
-                                ActionCommand::Fetch,
-                                Some(self.career.carry_cnt() as u32 * 50),
-                            ) {
-                                self.target = Some(container);
-                            }
+                    if let Some(container) = find_container(
+                        &creep,
+                        None,
+                        ActionCommand::Fetch,
+                        Some(self.career.carry_cnt() as u32 * 50),
+                    ) {
+                        self.target = Some(container);
+                    } else {
+                        if let Some(storage) = find_storage(
+                            &creep,
+                            None,
+                            Some(ActionCommand::Fetch),
+                            Some(self.career.carry_cnt() as u16 * 50),
+                        ) {
+                            self.target = Some(storage);
                         }
-                        1 => {
-                            if let Some(container) = find_container(
-                                &creep,
-                                Some(Position::new(
-                                    RoomCoordinate::new(41).unwrap(),
-                                    RoomCoordinate::new(5).unwrap(),
-                                    RoomName::new("E36N7").unwrap(),
-                                )),
-                                ActionCommand::Fetch,
-                                Some(self.career.carry_cnt() as u32 * 50),
-                            ) {
-                                self.target = Some(container);
-                            }
-                        }
-                        _ => {}
                     }
                 }
             }
@@ -467,7 +397,7 @@ impl CreepMgr {
                         &creep,
                         None,
                         Some(ActionCommand::Fetch),
-                        Some(self.career.carry_cnt() as u32 * 50),
+                        Some(self.career.carry_cnt() as u16 * 50),
                     ) {
                         self.target = Some(storage);
                     } else {
@@ -611,6 +541,18 @@ impl CreepMgr {
                     let controller = game::get_object_by_id_typed(&id).unwrap();
                     creep.upgrade_controller(&controller)
                 }
+                CreepTarget::TransferToContainer(id) => {
+                    let container = game::get_object_by_id_typed(&id).unwrap();
+                    creep.transfer(&container, ResourceType::Energy, None)
+                }
+                CreepTarget::TransferToTower(id) => {
+                    let tower = game::get_object_by_id_typed(&id).unwrap();
+                    creep.transfer(&tower, ResourceType::Energy, None)
+                }
+                CreepTarget::FetchFromTower(id) => {
+                    let tower = game::get_object_by_id_typed(&id).unwrap();
+                    creep.withdraw(&tower, ResourceType::Energy, None)
+                }
                 _ => Err(ErrorCode::InvalidArgs),
             },
             None => Err(ErrorCode::InvalidArgs),
@@ -709,6 +651,47 @@ impl CreepMgr {
                         .get_free_capacity(Some(ResourceType::Energy))
                         == 0
                         || creep.store().get_used_capacity(Some(ResourceType::Energy)) == 0
+                    {
+                        Ok(())
+                    } else {
+                        Err(ErrorCode::Busy)
+                    }
+                }
+                CreepTarget::TransferToContainer(id) => {
+                    if game::get_object_by_id_typed(&id)
+                        .unwrap()
+                        .store()
+                        .get_free_capacity(Some(ResourceType::Energy))
+                        == 0
+                        || creep.store().get_used_capacity(Some(ResourceType::Energy)) == 0
+                    {
+                        Ok(())
+                    } else {
+                        Err(ErrorCode::Busy)
+                    }
+                }
+                CreepTarget::TransferToTower(id) => {
+                    if game::get_object_by_id_typed(&id)
+                        .unwrap()
+                        .store()
+                        .get_free_capacity(Some(ResourceType::Energy))
+                        == 0
+                        || creep.store().get_used_capacity(Some(ResourceType::Energy)) == 0
+                    {
+                        Ok(())
+                    } else {
+                        Err(ErrorCode::Busy)
+                    }
+                }
+                CreepTarget::FetchFromTower(id) => {
+                    if creep.store().get_free_capacity(Some(ResourceType::Energy)) == 0 {
+                        self.setup_working_status(true);
+                        Ok(())
+                    } else if game::get_object_by_id_typed(&id)
+                        .unwrap()
+                        .store()
+                        .get_used_capacity(Some(ResourceType::Energy))
+                        < self.career.carry_cnt() as u32 * 50
                     {
                         Ok(())
                     } else {
