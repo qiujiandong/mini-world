@@ -12,6 +12,7 @@ pub enum CreepType {
     Builder(CreepComposition),
     Carrier(CreepComposition),
     Miner(CreepComposition),
+    Transfer(CreepComposition),
 }
 
 impl CreepComposition {
@@ -54,9 +55,9 @@ impl CreepType {
             }
             "builder" => {
                 let mut compose: Vec<(Part, u8)> = Vec::new();
-                compose.push((Part::Work, 7));
-                compose.push((Part::Carry, 7));
-                compose.push((Part::Move, 14));
+                compose.push((Part::Work, 6));
+                compose.push((Part::Carry, 6));
+                compose.push((Part::Move, 12));
                 CreepType::Builder(CreepComposition::new(&compose))
             }
             "carrier" => {
@@ -72,6 +73,13 @@ impl CreepType {
                 compose.push((Part::Carry, 1));
                 compose.push((Part::Move, 6));
                 CreepType::Miner(CreepComposition::new(&compose))
+            }
+            "transfer" => {
+                let mut compose: Vec<(Part, u8)> = Vec::new();
+                compose.push((Part::Work, 1));
+                compose.push((Part::Carry, 1));
+                compose.push((Part::Move, 2));
+                CreepType::Transfer(CreepComposition::new(&compose))
             }
             _ => {
                 let mut compose: Vec<(Part, u8)> = Vec::new();
@@ -90,6 +98,7 @@ impl CreepType {
             CreepType::Builder(c) => c.cost(),
             CreepType::Carrier(c) => c.cost(),
             CreepType::Miner(c) => c.cost(),
+            CreepType::Transfer(c) => c.cost(),
         }
     }
 
@@ -100,6 +109,7 @@ impl CreepType {
             CreepType::Builder(c) => &c.part_vec,
             CreepType::Carrier(c) => &c.part_vec,
             CreepType::Miner(c) => &c.part_vec,
+            CreepType::Transfer(c) => &c.part_vec,
         }
     }
 
@@ -110,6 +120,7 @@ impl CreepType {
             CreepType::Builder(c) => c.carry_cnt,
             CreepType::Carrier(c) => c.carry_cnt,
             CreepType::Miner(c) => c.carry_cnt,
+            CreepType::Transfer(c) => c.carry_cnt,
         }
     }
 
@@ -120,6 +131,7 @@ impl CreepType {
             CreepType::Builder(c) => c.work_cnt,
             CreepType::Carrier(c) => c.work_cnt,
             CreepType::Miner(c) => c.work_cnt,
+            CreepType::Transfer(c) => c.work_cnt,
         }
     }
 }

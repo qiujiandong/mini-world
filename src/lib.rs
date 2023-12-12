@@ -1,10 +1,12 @@
 use creep_manager::CreepMgr;
+use link_manager::*;
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 
 mod creep_composition;
 mod creep_manager;
 mod creep_target;
+mod link_manager;
 mod logging;
 
 thread_local! {
@@ -19,11 +21,13 @@ pub fn setup() {
     CREEP_ARRAY.with(|creep_array| {
         let creep_mgrs = &mut creep_array.borrow_mut();
 
-        creep_mgrs.push(CreepMgr::new("carrier-0")); // carry + move
-        creep_mgrs.push(CreepMgr::new("miner-1")); // work + move
-        creep_mgrs.push(CreepMgr::new("builder-0")); // work + carry + move
-        creep_mgrs.push(CreepMgr::new("miner-0")); // work + move
-        creep_mgrs.push(CreepMgr::new("upgrader-0")); // work + carry + move
+        creep_mgrs.push(CreepMgr::new("transfer-0"));
+        creep_mgrs.push(CreepMgr::new("carrier-0"));
+        creep_mgrs.push(CreepMgr::new("miner-1"));
+        creep_mgrs.push(CreepMgr::new("miner-0"));
+        creep_mgrs.push(CreepMgr::new("builder-1"));
+        creep_mgrs.push(CreepMgr::new("builder-0"));
+        creep_mgrs.push(CreepMgr::new("upgrader-0"));
     })
 }
 
@@ -36,4 +40,5 @@ pub fn game_loop() {
             creep_mgr.run();
         }
     });
+    link_tx_from_mine();
 }

@@ -465,21 +465,37 @@ impl CreepMgr {
                     }
                 }
             }
+            CreepType::Transfer(_) => {
+                if creep.store().get_used_capacity(Some(ResourceType::Energy)) > 0
+                    && self.is_creep_working().unwrap_or(true)
+                {
+                    if let Some(storage) =
+                        find_storage(&creep, None, Some(ActionCommand::Transfer), None)
+                    {
+                        self.target = Some(storage);
+                    }
+                } else {
+                    self.setup_working_status(false);
+                    if let Some(link) = find_link(
+                        &creep,
+                        Some(Position::new(
+                            RoomCoordinate::new(8).unwrap(),
+                            RoomCoordinate::new(31).unwrap(),
+                            RoomName::new("E36N7").unwrap(),
+                        )),
+                        Some(ActionCommand::Fetch),
+                        None,
+                    ) {
+                        self.target = Some(link);
+                    }
+                }
+            }
             _ => {}
         }
         if let Some(_) = self.target {
             Ok(())
         } else {
-            if let Some(storage) = find_storage(&creep, None, None, None) {
-                if creep.pos().is_near_to(storage.pos().unwrap()) {
-                    Err(ErrorCode::NotFound)
-                } else {
-                    self.target = Some(storage);
-                    Ok(())
-                }
-            } else {
-                Err(ErrorCode::NotFound)
-            }
+            Err(ErrorCode::NotFound)
         }
     }
 
@@ -814,7 +830,7 @@ impl CreepMgr {
                         .unwrap()
                         .store()
                         .get_used_capacity(Some(ResourceType::Energy))
-                        < self.career.carry_cnt() as u32 * 50
+                        == 0
                     {
                         Ok(())
                     } else {

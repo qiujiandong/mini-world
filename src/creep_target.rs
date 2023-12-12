@@ -238,7 +238,7 @@ pub fn find_storage(
             match act_ {
                 ActionCommand::Fetch => {
                     if s.store().get_used_capacity(Some(ResourceType::Energy))
-                        >= amount.unwrap_or(0) as u32
+                        >= amount.unwrap_or(1) as u32
                     {
                         ret = Some(CreepTarget::new(
                             ObjectWithPosition::from(s),
@@ -248,7 +248,9 @@ pub fn find_storage(
                     }
                 }
                 ActionCommand::Transfer => {
-                    if s.store().get_free_capacity(Some(ResourceType::Energy)) > 0 {
+                    if s.store().get_free_capacity(Some(ResourceType::Energy))
+                        >= amount.unwrap_or(1) as i32
+                    {
                         ret = Some(CreepTarget::new(
                             ObjectWithPosition::from(s),
                             Some(ActionCommand::Transfer),
