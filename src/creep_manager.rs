@@ -280,7 +280,6 @@ impl CreepMgr {
                     }
                 } else {
                     self.setup_working_status(false);
-
                     if let Some(storage) = find_storage(
                         &creep,
                         None,
@@ -293,27 +292,77 @@ impl CreepMgr {
             }
             CreepType::Miner(_) => match self.no {
                 0 => {
-                    if let Some(source) = find_source(
+                    if let Some(_) = find_container(
                         &creep,
                         Some(Position::new(
                             RoomCoordinate::new(4).unwrap(),
-                            RoomCoordinate::new(46).unwrap(),
+                            RoomCoordinate::new(45).unwrap(),
                             RoomName::new("E36N7").unwrap(),
                         )),
+                        ActionCommand::Transfer,
+                        None,
                     ) {
-                        self.target = Some(source);
+                        if let Some(source) = find_source(
+                            &creep,
+                            Some(Position::new(
+                                RoomCoordinate::new(4).unwrap(),
+                                RoomCoordinate::new(46).unwrap(),
+                                RoomName::new("E36N7").unwrap(),
+                            )),
+                        ) {
+                            self.target = Some(source);
+                        }
                     }
                 }
                 1 => {
-                    if let Some(source) = find_source(
+                    if let Some(_) = find_container(
                         &creep,
                         Some(Position::new(
-                            RoomCoordinate::new(42).unwrap(),
+                            RoomCoordinate::new(41).unwrap(),
                             RoomCoordinate::new(5).unwrap(),
                             RoomName::new("E36N7").unwrap(),
                         )),
+                        ActionCommand::Transfer,
+                        None,
                     ) {
-                        self.target = Some(source);
+                        // container is not full
+                        if let Some(source) = find_source(
+                            &creep,
+                            Some(Position::new(
+                                RoomCoordinate::new(42).unwrap(),
+                                RoomCoordinate::new(5).unwrap(),
+                                RoomName::new("E36N7").unwrap(),
+                            )),
+                        ) {
+                            self.target = Some(source);
+                        }
+                    } else {
+                        // container is full
+                        if creep.store().get_used_capacity(Some(ResourceType::Energy)) > 0 {
+                            if let Some(link) = find_link(
+                                &creep,
+                                Some(Position::new(
+                                    RoomCoordinate::new(40).unwrap(),
+                                    RoomCoordinate::new(4).unwrap(),
+                                    RoomName::new("E36N7").unwrap(),
+                                )),
+                                Some(ActionCommand::Transfer),
+                                None,
+                            ) {
+                                self.target = Some(link);
+                            }
+                        } else {
+                            if let Some(source) = find_source(
+                                &creep,
+                                Some(Position::new(
+                                    RoomCoordinate::new(42).unwrap(),
+                                    RoomCoordinate::new(5).unwrap(),
+                                    RoomName::new("E36N7").unwrap(),
+                                )),
+                            ) {
+                                self.target = Some(source);
+                            }
+                        }
                     }
                 }
                 _ => {}
@@ -358,7 +407,7 @@ impl CreepMgr {
                         &creep,
                         None,
                         ActionCommand::Fetch,
-                        Some(self.career.carry_cnt() as u32 * 50),
+                        Some(self.career.carry_cnt() as u16 * 50),
                     ) {
                         self.target = Some(container);
                     } else {
@@ -405,7 +454,7 @@ impl CreepMgr {
                             &creep,
                             None,
                             ActionCommand::Fetch,
-                            Some(self.career.carry_cnt() as u32 * 50),
+                            Some(self.career.carry_cnt() as u16 * 50),
                         ) {
                             self.target = Some(container);
                         } else {
@@ -440,30 +489,28 @@ impl CreepMgr {
         if let CreepType::Miner(_) = self.career {
             match self.no {
                 0 => {
-                    let pos = self
-                        .target
-                        .as_ref()
-                        .unwrap()
-                        .pos()
-                        .unwrap()
-                        .checked_add((0, -1))
-                        .unwrap();
                     // creep.move_to(pos)
                     let options = MoveToOptions::new().reuse_path(0);
-                    creep.move_to_with_options(pos, Some(options))
+                    creep.move_to_with_options(
+                        Position::new(
+                            RoomCoordinate::new(4).unwrap(),
+                            RoomCoordinate::new(45).unwrap(),
+                            RoomName::new("E36N7").unwrap(),
+                        ),
+                        Some(options),
+                    )
                 }
                 1 => {
-                    let pos = self
-                        .target
-                        .as_ref()
-                        .unwrap()
-                        .pos()
-                        .unwrap()
-                        .checked_add((-1, 0))
-                        .unwrap();
                     // creep.move_to(pos)
                     let options = MoveToOptions::new().reuse_path(0);
-                    creep.move_to_with_options(pos, Some(options))
+                    creep.move_to_with_options(
+                        Position::new(
+                            RoomCoordinate::new(41).unwrap(),
+                            RoomCoordinate::new(5).unwrap(),
+                            RoomName::new("E36N7").unwrap(),
+                        ),
+                        Some(options),
+                    )
                 }
                 _ => Err(ErrorCode::InvalidTarget),
             }
@@ -553,6 +600,14 @@ impl CreepMgr {
                     let tower = game::get_object_by_id_typed(&id).unwrap();
                     creep.withdraw(&tower, ResourceType::Energy, None)
                 }
+                CreepTarget::TransferToLink(id) => {
+                    let link = game::get_object_by_id_typed(&id).unwrap();
+                    creep.transfer(&link, ResourceType::Energy, None)
+                }
+                CreepTarget::FetchFromLink(id) => {
+                    let link = game::get_object_by_id_typed(&id).unwrap();
+                    creep.withdraw(&link, ResourceType::Energy, None)
+                }
                 _ => Err(ErrorCode::InvalidArgs),
             },
             None => Err(ErrorCode::InvalidArgs),
@@ -576,7 +631,47 @@ impl CreepMgr {
                 }
                 CreepTarget::FetchFromSource(id) => {
                     if let CreepType::Miner(_) = self.career {
-                        Err(ErrorCode::Busy)
+                        match self.no {
+                            0 => {
+                                if let Some(_) = find_container(
+                                    &creep,
+                                    Some(Position::new(
+                                        RoomCoordinate::new(4).unwrap(),
+                                        RoomCoordinate::new(45).unwrap(),
+                                        RoomName::new("E36N7").unwrap(),
+                                    )),
+                                    ActionCommand::Transfer,
+                                    None,
+                                ) {
+                                    Err(ErrorCode::Busy)
+                                } else {
+                                    Ok(())
+                                }
+                            }
+                            1 => {
+                                if let Some(_) = find_container(
+                                    &creep,
+                                    Some(Position::new(
+                                        RoomCoordinate::new(41).unwrap(),
+                                        RoomCoordinate::new(5).unwrap(),
+                                        RoomName::new("E36N7").unwrap(),
+                                    )),
+                                    ActionCommand::Transfer,
+                                    None,
+                                ) {
+                                    Err(ErrorCode::Busy)
+                                } else {
+                                    if creep.store().get_free_capacity(Some(ResourceType::Energy))
+                                        == 0
+                                    {
+                                        Ok(())
+                                    } else {
+                                        Err(ErrorCode::Busy)
+                                    }
+                                }
+                            }
+                            _ => Err(ErrorCode::Busy),
+                        }
                     } else {
                         if creep.store().get_free_capacity(Some(ResourceType::Energy)) == 0 {
                             self.setup_working_status(true);
@@ -684,6 +779,34 @@ impl CreepMgr {
                     }
                 }
                 CreepTarget::FetchFromTower(id) => {
+                    if creep.store().get_free_capacity(Some(ResourceType::Energy)) == 0 {
+                        self.setup_working_status(true);
+                        Ok(())
+                    } else if game::get_object_by_id_typed(&id)
+                        .unwrap()
+                        .store()
+                        .get_used_capacity(Some(ResourceType::Energy))
+                        < self.career.carry_cnt() as u32 * 50
+                    {
+                        Ok(())
+                    } else {
+                        Err(ErrorCode::Busy)
+                    }
+                }
+                CreepTarget::TransferToLink(id) => {
+                    if game::get_object_by_id_typed(&id)
+                        .unwrap()
+                        .store()
+                        .get_free_capacity(Some(ResourceType::Energy))
+                        == 0
+                        || creep.store().get_used_capacity(Some(ResourceType::Energy)) == 0
+                    {
+                        Ok(())
+                    } else {
+                        Err(ErrorCode::Busy)
+                    }
+                }
+                CreepTarget::FetchFromLink(id) => {
                     if creep.store().get_free_capacity(Some(ResourceType::Energy)) == 0 {
                         self.setup_working_status(true);
                         Ok(())

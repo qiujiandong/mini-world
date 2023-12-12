@@ -1,18 +1,37 @@
 use screeps::*;
 
 pub enum CreepTarget {
-    Upgrade(ObjectId<StructureController>),            // upgrade
-    Build(ObjectId<ConstructionSite>),                 // build
-    TransferToSpawn(ObjectId<StructureSpawn>),         // transfer
-    TransferToExtension(ObjectId<StructureExtension>), // transfer
-    TransferToStorage(ObjectId<StructureStorage>),     // transfer
-    TransferToContainer(ObjectId<StructureContainer>), // transfer
+    // controller
+    Upgrade(ObjectId<StructureController>), // upgrade
+
+    // constructionsite
+    Build(ObjectId<ConstructionSite>), // build
+
+    // spawn
+    TransferToSpawn(ObjectId<StructureSpawn>),
+
+    // extension
+    TransferToExtension(ObjectId<StructureExtension>),
+
+    // storage
+    TransferToStorage(ObjectId<StructureStorage>),
+    FetchFromStorage(ObjectId<StructureStorage>),
+
+    // container
+    TransferToContainer(ObjectId<StructureContainer>),
+    FetchFromContainer(ObjectId<StructureContainer>),
+
+    // tower
     TransferToTower(ObjectId<StructureTower>),
-    MoveToStorage(ObjectId<StructureStorage>),
-    FetchFromStorage(ObjectId<StructureStorage>), // withdraw
-    FetchFromContainer(ObjectId<StructureContainer>), // withdraw
     FetchFromTower(ObjectId<StructureTower>),
-    FetchFromSource(ObjectId<Source>), // harvest
+
+    // link
+    TransferToLink(ObjectId<StructureLink>),
+    FetchFromLink(ObjectId<StructureLink>),
+
+    // source
+    FetchFromSource(ObjectId<Source>),
+
     Default,
 }
 
@@ -25,55 +44,105 @@ pub enum ActionCommand {
 impl CreepTarget {
     pub fn new(obj: ObjectWithPosition, act: Option<ActionCommand>) -> Self {
         match obj {
+            // controller
             ObjectWithPosition::StructureController(controller) => Self::Upgrade(controller.id()),
-            ObjectWithPosition::Source(source) => Self::FetchFromSource(source.id()),
-            ObjectWithPosition::ConstructionSite(cs) => Self::Build(cs.try_id().unwrap()),
+
+            // construction_site
+            ObjectWithPosition::ConstructionSite(construction_site) => {
+                Self::Build(construction_site.try_id().unwrap())
+            }
+
+            // spawn
             ObjectWithPosition::StructureSpawn(spawn) => Self::TransferToSpawn(spawn.id()),
+
+            // extension
             ObjectWithPosition::StructureExtension(extension) => {
                 Self::TransferToExtension(extension.id())
             }
+
+            // storage
             ObjectWithPosition::StructureStorage(storage) => match act {
                 Some(ActionCommand::Fetch) => Self::FetchFromStorage(storage.id()),
                 Some(ActionCommand::Transfer) => Self::TransferToStorage(storage.id()),
-                None => Self::MoveToStorage(storage.id()),
+                None => Self::Default,
             },
+
+            // container
             ObjectWithPosition::StructureContainer(container) => match act {
                 Some(ActionCommand::Fetch) => Self::FetchFromContainer(container.id()),
                 Some(ActionCommand::Transfer) => Self::TransferToContainer(container.id()),
                 None => Self::Default,
             },
+
+            // tower
             ObjectWithPosition::StructureTower(tower) => match act {
                 Some(ActionCommand::Transfer) => Self::TransferToTower(tower.id()),
                 Some(ActionCommand::Fetch) => Self::FetchFromTower(tower.id()),
                 _ => Self::Default,
             },
+
+            // link
+            ObjectWithPosition::StructureLink(link) => match act {
+                Some(ActionCommand::Transfer) => Self::TransferToLink(link.id()),
+                Some(ActionCommand::Fetch) => Self::FetchFromLink(link.id()),
+                _ => Self::Default,
+            },
+
+            // source
+            ObjectWithPosition::Source(source) => match act {
+                Some(ActionCommand::Fetch) => Self::FetchFromSource(source.id()),
+                Some(ActionCommand::Transfer) => Self::Default,
+                None => Self::Default,
+            },
+
             _ => Self::Default,
         }
     }
 
     pub fn pos(&self) -> Option<Position> {
         match self {
+            // controller
             Self::Upgrade(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
+
+            // construction_site
             Self::Build(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
+
+            // spawn
             Self::TransferToSpawn(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
+
+            // extension
             Self::TransferToExtension(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
+
+            // storage
             Self::TransferToStorage(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
-            Self::TransferToContainer(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
-            Self::TransferToTower(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
             Self::FetchFromStorage(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
+
+            // container
+            Self::TransferToContainer(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
             Self::FetchFromContainer(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
+
+            // tower
+            Self::TransferToTower(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
             Self::FetchFromTower(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
+
+            // link
+            Self::TransferToLink(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
+            Self::FetchFromLink(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
+
+            // source
             Self::FetchFromSource(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
-            Self::MoveToStorage(id) => Some(game::get_object_by_id_typed(&id).unwrap().pos()),
+
             _ => None,
         }
     }
 }
 
 pub fn find_source(creep: &Creep, pos: Option<Position>) -> Option<CreepTarget> {
+    let mut ret: Option<CreepTarget> = None;
     let src;
     let room = creep.clone().room().unwrap();
     let sources = room.find(find::SOURCES_ACTIVE, None);
+
     match pos {
         Some(pos_) => {
             src = sources.iter().find(|s| s.pos().is_equal_to(pos_));
@@ -85,20 +154,19 @@ pub fn find_source(creep: &Creep, pos: Option<Position>) -> Option<CreepTarget> 
         }
     }
     if let Some(src_) = src {
-        Some(CreepTarget::new(
+        ret = Some(CreepTarget::new(
             ObjectWithPosition::from(src_.clone()),
-            None,
-        ))
-    } else {
-        None
+            Some(ActionCommand::Fetch),
+        ));
     }
+    ret
 }
 
 pub fn find_container(
     creep: &Creep,
     pos: Option<Position>,
     act: ActionCommand,
-    amount: Option<u32>,
+    amount: Option<u16>,
 ) -> Option<CreepTarget> {
     let container;
     let room = creep.clone().room().unwrap();
@@ -110,7 +178,16 @@ pub fn find_container(
         .filter(|s| {
             if s.structure_type() == StructureType::Container {
                 let c: StructureContainer = (*s).clone().try_into().unwrap();
-                c.store().get_used_capacity(Some(ResourceType::Energy)) >= amount.unwrap_or(0)
+                match act {
+                    ActionCommand::Transfer => {
+                        c.store().get_free_capacity(Some(ResourceType::Energy))
+                            >= amount.unwrap_or(1) as i32
+                    }
+                    ActionCommand::Fetch => {
+                        c.store().get_used_capacity(Some(ResourceType::Energy))
+                            >= amount.unwrap_or(1) as u32
+                    }
+                }
             } else {
                 false
             }
@@ -330,6 +407,60 @@ pub fn find_tower(
                     }
                 }
             }
+        }
+    }
+    ret
+}
+
+pub fn find_link(
+    creep: &Creep,
+    pos: Option<Position>,
+    act: Option<ActionCommand>,
+    amount: Option<u16>,
+) -> Option<CreepTarget> {
+    let mut ret: Option<CreepTarget> = None;
+    let room = creep.clone().room().unwrap();
+    let structures = room.find(find::STRUCTURES, None);
+    // find storage
+    for link in structures
+        .iter()
+        .filter(|s| s.structure_type() == StructureType::Link)
+    {
+        let lnk: StructureLink = link.clone().try_into().unwrap();
+        // check pos
+        if let Some(pos_) = pos {
+            if !lnk.pos().is_equal_to(pos_) {
+                continue;
+            }
+        }
+        // check energy
+        if let Some(act_) = act {
+            match act_ {
+                ActionCommand::Fetch => {
+                    if lnk.store().get_used_capacity(Some(ResourceType::Energy))
+                        >= amount.unwrap_or(1) as u32
+                    {
+                        ret = Some(CreepTarget::new(
+                            ObjectWithPosition::from(lnk),
+                            Some(ActionCommand::Fetch),
+                        ));
+                        break;
+                    }
+                }
+                ActionCommand::Transfer => {
+                    if lnk.store().get_free_capacity(Some(ResourceType::Energy))
+                        > amount.unwrap_or(1) as i32
+                    {
+                        ret = Some(CreepTarget::new(
+                            ObjectWithPosition::from(lnk),
+                            Some(ActionCommand::Transfer),
+                        ));
+                        break;
+                    }
+                }
+            }
+        } else {
+            ret = Some(CreepTarget::new(ObjectWithPosition::from(lnk), None));
         }
     }
     ret
